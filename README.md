@@ -57,7 +57,6 @@ cd environments/dev   # or stg, prod
 Each environment has its own `backend.tf` with Terraform Cloud workspace:
 - dev: `ecs-scheduler-dev`
 - stg: `ecs-scheduler-stg`
-- prod: `ecs-scheduler-prod`
 
 ### 3. Initialize
 
