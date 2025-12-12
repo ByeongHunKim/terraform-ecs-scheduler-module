@@ -15,6 +15,11 @@ terraform {
   }
 }
 
+provider "aws" {
+  region = "ap-northeast-2"
+}
+
+
 # Common Infrastructure for Slack Notifications
 resource "aws_sns_topic" "ecs_scheduler_alerts" {
   name = "ecs-scheduler-alerts-${var.environment}"
