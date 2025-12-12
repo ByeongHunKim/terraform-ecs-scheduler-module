@@ -1,25 +1,3 @@
-terraform {
-  cloud {
-    organization = "YOUR_ORGANIZATION_NAME"
-
-    workspaces {
-      name = "YOUR_WORKSPACE_NAME"
-    }
-  }
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = "ap-northeast-2"
-}
-
-
 # Common Infrastructure for Slack Notifications
 resource "aws_sns_topic" "ecs_scheduler_alerts" {
   name = "ecs-scheduler-alerts-${var.environment}"
