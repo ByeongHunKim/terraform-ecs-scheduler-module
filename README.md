@@ -24,21 +24,21 @@ terraform/
 ## Architecture
 
 ```mermaid
-graph TB
-    EventBridge[EventBridge Scheduler]
-    ECS[ECS Service]
-    CloudTrail[CloudTrail]
-    EventBridgeRule[EventBridge Rule]
-    SNS[SNS Topic]
-    Lambda[Lambda Function]
-    Slack[Slack Webhook]
+sequenceDiagram
+    participant Scheduler as EventBridge Scheduler
+    participant ECS as ECS Service
+    participant Trail as CloudTrail
+    participant Rule as EventBridge Rule
+    participant SNS as SNS Topic
+    participant Lambda as Lambda Function
+    participant Slack as Slack Webhook
 
-    EventBridge -->|UpdateService| ECS
-    ECS -->|API Call Event| CloudTrail
-    CloudTrail -->|Event| EventBridgeRule
-    EventBridgeRule -->|Publish| SNS
-    SNS -->|Trigger| Lambda
-    Lambda -->|Send Message| Slack
+    Scheduler->>ECS: UpdateService (Scale Up/Down)
+    ECS->>Trail: Log API Call
+    Trail->>Rule: Trigger Event
+    Rule->>SNS: Publish Message
+    SNS->>Lambda: Invoke Function
+    Lambda->>Slack: Send Notification
 ```
 
 ## Usage
