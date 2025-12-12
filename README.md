@@ -5,20 +5,23 @@ A modular Terraform project for managing ECS service scheduling (Scale Up/Down) 
 ## Directory Structure
 
 ```
-terraform/
+terraform-ecs-scheduler-module/
 ├── modules/
-│   └── ecs-scheduler/       # Core module for ECS scheduling
-│       ├── main.tf          # IAM Roles, EventBridge Schedule resources
-│       ├── variables.tf     # Input variables
-│       └── outputs.tf       # Output values
-├── slack-notifier/          # Lambda function for Slack notifications
-│   └── index.py
-├── backend.tf               # Backend configuration (Terraform Cloud)
-├── terraform.tf             # Terraform and provider version constraints
-├── main.tf                  # Root configuration (SNS, Lambda, module calls)
-├── variables.tf             # Global variables
-├── terraform.tfvars         # Environment variables and settings (example)
-└── .gitignore
+│   ├── ecs-scheduler/           # ECS scheduling module
+│   │   ├── main.tf              # IAM Roles, EventBridge Schedule resources
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   └── slack-notifier/          # Slack notification module
+│       ├── main.tf              # SNS, Lambda, EventBridge Rule
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── lambda/
+│           └── index.py
+├── environments/
+│   ├── dev/                     # Development environment
+│   ├── stg/                     # Staging environment
+│   └── prod/                    # Production environment
+└── README.md
 ```
 
 ## Flow
@@ -43,98 +46,77 @@ sequenceDiagram
 
 ## Usage
 
-### 1. Backend Configuration
+### 1. Select Environment
 
-Update `backend.tf` with your Terraform Cloud settings:
-
-```hcl
-terraform {
-  cloud {
-    organization = "YOUR_ORGANIZATION_NAME"
-    workspaces {
-      name = "YOUR_WORKSPACE_NAME"
-    }
-  }
-}
+```bash
+cd environments/dev   # or stg, prod
 ```
 
-For S3 or local backend, uncomment the relevant section in `backend.tf`.
+### 2. Configure Backend
 
-### 2. Initialize
+Each environment has its own `backend.tf` with Terraform Cloud workspace:
+- dev: `ecs-scheduler-dev`
+- stg: `ecs-scheduler-stg`
+- prod: `ecs-scheduler-prod`
+
+### 3. Initialize
 
 ```bash
 terraform login
-cd terraform
 terraform init
 ```
 
-### 3. Configure Variables
+### 4. Configure Variables
 
-Edit `terraform.tfvars`:
+Set `slack_webhook_url` in Terraform Cloud workspace variables (sensitive).
 
+Or edit `terraform.tfvars`:
 ```hcl
-environment       = "dev"
 slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 ```
 
-### 4. Plan and Apply
+### 5. Plan and Apply
 
 ```bash
 terraform plan
 terraform apply
 ```
 
-### 5. Disable Scheduling for Specific Services
-
-To modify only the Scale Down schedule for a specific service:
+### 6. Target Specific Schedule
 
 ```bash
-terraform apply -target=module.api_scheduler.aws_scheduler_schedule.scale_down
+terraform apply -target=module.nestjs_scheduler.aws_scheduler_schedule.scale_down
 ```
 
 ## Adding a New Service
 
-Add the following block to `main.tf`:
+Add the following block to `environments/<env>/main.tf`:
 
 ```hcl
 module "new_service_scheduler" {
-  source          = "./modules/ecs-scheduler"
-
-  service_name    = "new-service-dev"
-  cluster_name    = aws_ecs_cluster.app-cluster-dev.name
-  ecs_service_arn = aws_ecs_service.new-service-dev.id
+  source          = "../../modules/ecs-scheduler"
+  service_name    = "new-service"
+  cluster_name    = var.cluster_name
+  ecs_service_arn = "arn:aws:ecs:ap-northeast-2:ACCOUNT_ID:service/${var.cluster_name}/new-service"
   environment     = var.environment
 
   # Optional: Custom cron expressions (KST timezone)
-  # scale_up_cron   = "cron(0 0 ? * MON-FRI *)"   # 00:00 KST
-  # scale_down_cron = "cron(0 9 ? * MON-FRI *)"   # 09:00 KST
+  # scale_up_cron   = "cron(0 9 ? * MON-FRI *)"
+  # scale_down_cron = "cron(0 18 ? * MON-FRI *)"
 }
 ```
 
 ## Slack Notifications
 
-Set the Webhook URL in `terraform.tfvars`:
-
-```hcl
-slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-```
-
 Notifications are sent for:
-- ECS Scheduling Succeeded (SUCCEEDED)
-- ECS Scheduling Failed (FAILED)
+- ECS Scheduling Succeeded
+- ECS Scheduling Failed
 
 ## Key Features
 
-- **Modular Design**: Reuse scheduler settings with `modules/ecs-scheduler`
+- **Multi-Environment**: Separate configurations for dev, stg, prod
+- **Modular Design**: Reusable `ecs-scheduler` and `slack-notifier` modules
 - **EventBridge Scheduler**: Uses `aws_scheduler_schedule` for reliable scheduling
 - **Timezone Support**: `Asia/Seoul` timezone - cron expressions use KST time directly
 - **Slack Integration**: Real-time execution results via Lambda and SNS
-- **Flexible Backend**: Easy migration between Terraform Cloud, S3, or local backends
-
-## Configuration Files
-
-- `terraform.tf`: Terraform version and AWS provider configuration
-- `backend.tf`: Backend configuration (separate for easy migration)
-- `main.tf`: Main infrastructure and module instantiation
-- `variables.tf`: Global variable definitions
-- `terraform.tfvars`: Variable values (not committed to git)
+- **Terraform Cloud**: Each environment has its own workspace
