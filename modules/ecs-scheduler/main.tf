@@ -54,12 +54,6 @@ resource "aws_scheduler_schedule" "scale_up" {
       DesiredCount = var.scale_up_count
     })
   }
-
-  tags = {
-    Environment = var.environment
-    Service     = var.service_name
-    Action      = "scale-up"
-  }
 }
 
 # Scale Down Schedule (18:00 KST)
@@ -82,11 +76,5 @@ resource "aws_scheduler_schedule" "scale_down" {
       Service      = var.service_name
       DesiredCount = var.scale_down_count
     })
-  }
-
-  tags = {
-    Environment = var.environment
-    Service     = var.service_name
-    Action      = "scale-down"
   }
 }
