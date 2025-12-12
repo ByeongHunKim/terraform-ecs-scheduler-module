@@ -92,18 +92,21 @@ resource "aws_lambda_permission" "allow_sns" {
 }
 
 # EventBridge Rule for Scheduler state changes
-resource "aws_cloudwatch_event_rule" "scheduler_state_change" {
-  name        = "ecs-scheduler-state-change-${var.environment}"
-  description = "Capture ECS Scheduler execution results"
+resource "aws_cloudwatch_event_rule" "ecs_update_service" {
+  name        = "ecs-scheduler-update-service-${var.environment}"
+  description = "Capture ECS UpdateService calls from Scheduler"
 
   event_pattern = jsonencode({
-    source      = ["aws.scheduler"]
-    detail-type = ["Scheduler Execution State Change"]
+    source      = ["aws.ecs"]
+    detail-type = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventName = ["UpdateService"]
+    }
   })
 }
 
 resource "aws_cloudwatch_event_target" "send_to_sns" {
-  rule      = aws_cloudwatch_event_rule.scheduler_state_change.name
+  rule      = aws_cloudwatch_event_rule.ecs_update_service.name
   target_id = "SendToSNS"
   arn       = aws_sns_topic.ecs_scheduler_alerts.arn
 }
@@ -139,26 +142,6 @@ module "api_scheduler" {
 
   scale_up_cron   = "cron(0 0 ? * MON-FRI *)"  # 09:00 KST
   scale_down_cron = "cron(0 9 ? * MON-FRI *)"  # 18:00 KST
-}
-
-# 2. backend-service
-module "backend_scheduler" {
-  source = "./modules/ecs-scheduler"
-
-  service_name    = "backend-service-dev"
-  cluster_name    = aws_ecs_cluster.app-cluster-dev.name
-  ecs_service_arn = aws_ecs_service.backend-service-dev.id
-  environment     = var.environment
-}
-
-# 3. worker-service(example)
-module "worker_scheduler" {
-  source = "./modules/ecs-scheduler"
-
-  service_name    = "worker-service-dev"
-  cluster_name    = aws_ecs_cluster.app-cluster-dev.name
-  ecs_service_arn = aws_ecs_service.worker-service-dev.id
-  environment     = var.environment
 }
 
 # ... Add remaining services similarly
