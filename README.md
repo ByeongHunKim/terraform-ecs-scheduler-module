@@ -21,7 +21,7 @@ terraform/
 └── .gitignore
 ```
 
-## Architecture
+## Flow
 
 ```mermaid
 sequenceDiagram
