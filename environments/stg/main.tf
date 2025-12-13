@@ -3,6 +3,9 @@ module "slack_notifier" {
   source            = "../../modules/slack-notifier"
   environment       = var.environment
   slack_webhook_url = var.slack_webhook_url
+  # Optional
+  # batch_size              = 2   # 2 messages threshold, DEFAULT 10
+  # batching_window_seconds = 300  # MAX 5M , DEFAULT 300
 }
 
 # ECS Scheduler - nestjs service
