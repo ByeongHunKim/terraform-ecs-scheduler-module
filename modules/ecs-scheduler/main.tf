@@ -1,3 +1,11 @@
+# Data sources for automatic ARN generation
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+locals {
+  ecs_service_arn = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${var.cluster_name}/${var.service_name}"
+}
+
 # IAM Role for Scheduler
 resource "aws_iam_role" "ecs_scheduler_role" {
   name = "${var.service_name}-scheduler-role-${var.environment}"
@@ -28,7 +36,7 @@ resource "aws_iam_role_policy" "ecs_scheduler_policy" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ecs:UpdateService"]
-      Resource = [var.ecs_service_arn]
+      Resource = [local.ecs_service_arn]
     }]
   })
 }
@@ -41,7 +49,8 @@ resource "aws_scheduler_schedule" "scale_up" {
   schedule_expression_timezone = "Asia/Seoul"
 
   flexible_time_window {
-    mode = "OFF"
+    mode                      = var.flexible_time_window_minutes > 0 ? "FLEXIBLE" : "OFF"
+    maximum_window_in_minutes = var.flexible_time_window_minutes > 0 ? var.flexible_time_window_minutes : null
   }
 
   target {
@@ -64,7 +73,8 @@ resource "aws_scheduler_schedule" "scale_down" {
   schedule_expression_timezone = "Asia/Seoul"
 
   flexible_time_window {
-    mode = "OFF"
+    mode                      = var.flexible_time_window_minutes > 0 ? "FLEXIBLE" : "OFF"
+    maximum_window_in_minutes = var.flexible_time_window_minutes > 0 ? var.flexible_time_window_minutes : null
   }
 
   target {

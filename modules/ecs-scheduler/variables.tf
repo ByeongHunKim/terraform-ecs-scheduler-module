@@ -8,11 +8,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "ecs_service_arn" {
-  description = "ECS Service ARN"
-  type        = string
-}
-
 variable "environment" {
   description = "Environment (dev, staging, prod)"
   type        = string
@@ -41,4 +36,10 @@ variable "scale_down_count" {
   description = "Desired count when scaling down"
   type        = number
   default     = 0
+}
+
+variable "flexible_time_window_minutes" {
+  description = "Maximum window in minutes for flexible scheduling (0 = OFF, 1-60 = FLEXIBLE)"
+  type        = number
+  default     = 5
 }
