@@ -1,9 +1,9 @@
 terraform {
   cloud {
-    organization = "meiko_Org"
+    organization = "YOUR_ORGANIZATION_NAME"
 
     workspaces {
-      name = "ecs-scheduler-module"
+      name = "YOUR_WORKSPACE_NAME"
     }
   }
 }
