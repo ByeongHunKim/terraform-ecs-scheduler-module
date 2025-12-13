@@ -1,10 +1,30 @@
-# SNS Topic for ECS Scheduler Alerts
-resource "aws_sns_topic" "alerts" {
-  name = "${var.name_prefix}-alerts-${var.environment}"
+# SQS Queue for batching ECS events
+resource "aws_sqs_queue" "alerts" {
+  name                       = "${var.name_prefix}-alerts-${var.environment}"
+  visibility_timeout_seconds = 60
+  message_retention_seconds  = 3600 # 1 hour
+  receive_wait_time_seconds  = 0
 
   tags = {
     Environment = var.environment
   }
+}
+
+# SQS Queue Policy to allow EventBridge
+resource "aws_sqs_queue_policy" "allow_eventbridge" {
+  queue_url = aws_sqs_queue.alerts.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "events.amazonaws.com"
+      }
+      Action   = "sqs:SendMessage"
+      Resource = aws_sqs_queue.alerts.arn
+    }]
+  })
 }
 
 # Lambda Function for Slack Notifications
@@ -20,12 +40,13 @@ resource "aws_lambda_function" "slack_notifier" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "index.handler"
   runtime          = "python3.11"
-  timeout          = 10
+  timeout          = 30
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {
     variables = {
       SLACK_WEBHOOK_URL = var.slack_webhook_url
+      ENVIRONMENT       = var.environment
     }
   }
 
@@ -55,19 +76,32 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# SNS Subscription for Lambda
-resource "aws_sns_topic_subscription" "slack" {
-  topic_arn = aws_sns_topic.alerts.arn
-  protocol  = "lambda"
-  endpoint  = aws_lambda_function.slack_notifier.arn
+# IAM Policy for Lambda to read from SQS
+resource "aws_iam_role_policy" "lambda_sqs" {
+  name = "${var.name_prefix}-lambda-sqs-${var.environment}"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+      ]
+      Resource = aws_sqs_queue.alerts.arn
+    }]
+  })
 }
 
-resource "aws_lambda_permission" "allow_sns" {
-  statement_id  = "AllowExecutionFromSNS"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.slack_notifier.function_name
-  principal     = "sns.amazonaws.com"
-  source_arn    = aws_sns_topic.alerts.arn
+# Lambda Event Source Mapping for SQS (Batch Processing)
+resource "aws_lambda_event_source_mapping" "sqs_trigger" {
+  event_source_arn                   = aws_sqs_queue.alerts.arn
+  function_name                      = aws_lambda_function.slack_notifier.arn
+  batch_size                         = var.batch_size
+  maximum_batching_window_in_seconds = var.batching_window_seconds
+  enabled                            = true
 }
 
 # EventBridge Rule for ECS UpdateService via CloudTrail
@@ -84,24 +118,9 @@ resource "aws_cloudwatch_event_rule" "ecs_update_service" {
   })
 }
 
-resource "aws_cloudwatch_event_target" "send_to_sns" {
+# EventBridge Target to SQS
+resource "aws_cloudwatch_event_target" "send_to_sqs" {
   rule      = aws_cloudwatch_event_rule.ecs_update_service.name
-  target_id = "SendToSNS"
-  arn       = aws_sns_topic.alerts.arn
-}
-
-resource "aws_sns_topic_policy" "allow_eventbridge" {
-  arn = aws_sns_topic.alerts.arn
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "events.amazonaws.com"
-      }
-      Action   = "SNS:Publish"
-      Resource = aws_sns_topic.alerts.arn
-    }]
-  })
+  target_id = "SendToSQS"
+  arn       = aws_sqs_queue.alerts.arn
 }
