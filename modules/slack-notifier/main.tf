@@ -114,6 +114,15 @@ resource "aws_cloudwatch_event_rule" "ecs_update_service" {
     detail-type = ["AWS API Call via CloudTrail"]
     detail = {
       eventName = ["UpdateService"]
+      # The new filter logic
+      userIdentity = {
+        sessionContext = {
+          sessionIssuer = {
+            # Only match callers whose userName (the IAM Role name) ends with the scheduler's specific suffix
+            userName = [{ "suffix": "-scheduler-role-${var.environment}" }]
+          }
+        }
+      }
     }
   })
 }
